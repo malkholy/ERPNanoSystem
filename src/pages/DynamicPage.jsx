@@ -205,7 +205,7 @@ export default function DynamicPage({ pageID, pageName }) {
     try {
       if (isLiveMode) {
         const res = await apiCall("Get Page Info", { PageID: pageID });
-        if (res.State === 0) {
+        if (res.state === 0 || res.State === 0) {
           // Columns (List0)
           const mappedCols = (res.List0 || []).map(col => ({
             key: col.key,
@@ -276,7 +276,7 @@ export default function DynamicPage({ pageID, pageName }) {
   async function loadDropdownOpts(filterCode, filterID) {
     try {
       const res = await apiCall("Get Filter Options", { FilterID: filterID });
-      if (res.State === 0) {
+      if (res.state === 0 || res.State === 0) {
         setDropdownOptions(prev => ({
           ...prev,
           [filterCode]: res.List0 || []
@@ -294,7 +294,7 @@ export default function DynamicPage({ pageID, pageName }) {
       if (isLiveMode) {
         const payload = { PageID: pageID, UserID: session.UserID, ...filterValues };
         const res = await apiCall("Get Page Data", payload);
-        if (res.State === 0) {
+        if (res.state === 0 || res.State === 0) {
           let dbRows = res.List0 || [];
           if (activeGroupByKey) {
             dbRows = groupRowsLocal(dbRows, activeGroupByKey);
