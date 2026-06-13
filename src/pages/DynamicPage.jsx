@@ -124,11 +124,33 @@ const MOCK_CONFIGS = {
 };
 
 const PAGE_CSS = `
-.erp-filter-bar { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 18px 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
-.erp-filter-item { min-width: 180px; display: flex; flex-direction: column; gap: 6px; }
-.erp-filter-item label { font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.erp-filter-clear-btn { height: 42px; border: 1px solid var(--border); background: var(--soft); border-radius: 12px; padding: 0 16px; font-weight: 850; font-size: 13px; cursor: pointer; transition: all 0.15s; }
-.erp-filter-clear-btn:hover { background: var(--primary-soft); color: var(--primary-dark); border-color: var(--primary); }
+.erp-page-layout { display: flex; gap: 24px; position: relative; }
+.erp-page-main { flex: 1; min-width: 0; }
+.erp-panel-toggle-tab { position: fixed; right: 0; top: 120px; z-index: 29; background: var(--primary); color: #fff; border: 0; border-radius: 12px 0 0 12px; padding: 12px 14px; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; box-shadow: var(--shadow); display: flex; align-items: center; gap: 6px; transition: background 0.15s; }
+.erp-panel-toggle-tab:hover { background: var(--primary-dark); }
+.erp-right-panel { width: 280px; flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; transition: all 0.2s ease-in-out; }
+.erp-right-panel.collapsed { width: 0; opacity: 0; padding: 0; margin-left: -24px; border: 0; pointer-events: none; }
+.erp-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+.erp-panel-header h3 { font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; }
+.erp-panel-close-btn { background: none; border: 0; color: var(--primary); font-weight: 900; font-size: 12px; cursor: pointer; }
+.erp-panel-close-btn:hover { color: var(--primary-dark); }
+.erp-panel-scroll { display: flex; flex-direction: column; gap: 20px; }
+.erp-panel-section { display: flex; flex-direction: column; gap: 12px; }
+.erp-panel-section h4 { font-size: 11px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.erp-section-header { display: flex; justify-content: space-between; align-items: center; }
+.erp-section-clear-btn { background: none; border: 0; color: var(--red); font-weight: 850; font-size: 11px; cursor: pointer; }
+.erp-section-clear-btn:hover { text-decoration: underline; }
+.erp-panel-fields { display: flex; flex-direction: column; gap: 12px; }
+.erp-panel-field { display: flex; flex-direction: column; gap: 6px; }
+.erp-panel-field label { font-size: 11px; font-weight: 850; color: var(--muted); text-transform: uppercase; }
+.erp-panel-field input { height: 42px; border: 1px solid var(--border); border-radius: 12px; padding: 0 12px; font-size: 13px; font-weight: 700; outline: none; background: var(--soft); }
+.erp-panel-field input:focus { border-color: var(--primary); }
+.erp-columns-list { display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; padding-right: 4px; }
+.erp-columns-list::-webkit-scrollbar { width: 4px; }
+.erp-columns-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+.erp-col-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; cursor: pointer; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--soft); transition: all 0.1s; }
+.erp-col-checkbox:hover { border-color: var(--primary); }
+.erp-col-checkbox input { width: 16px; height: 16px; cursor: pointer; }
 `;
 
 function injectPageCSS() {
@@ -157,8 +179,26 @@ export default function DynamicPage({ pageID, pageName }) {
   const [activeGroupByKey, setActiveGroupByKey] = useState("");
   
   const [loading, setLoading] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [visibleColumns, setVisibleColumns] = useState({});
 
   const isLiveMode = session?.Pages && session.Pages.length > 0;
+
+  useEffect(() => {
+    if (baseColumns.length > 0) {
+      setVisibleColumns(prev => {
+        const next = { ...prev };
+        baseColumns.forEach(col => {
+          if (next[col.key] === undefined) {
+            next[col.key] = true;
+          }
+        });
+        return next;
+      });
+    }
+  }, [baseColumns]);
+
+  const displayedColumns = columns.filter(col => visibleColumns[col.key] !== false);
 
   useEffect(() => {
     loadPageSetup();
@@ -388,86 +428,118 @@ export default function DynamicPage({ pageID, pageName }) {
   }
 
   return (
-    <div>
-      {/* Dynamic Filter & Layout Option Panel */}
-      <div className="erp-filter-bar">
-        {filters.map(filter => {
-          const filterKey = isLiveMode ? filter.key : filter.FilterCode;
-          const filterLabel = isLiveMode ? filter.label : filter.DisplayName;
-          const opts = dropdownOptions[filterKey] || [];
-          return (
-            <div key={filterKey} className="erp-filter-item">
-              <label>{filterLabel}</label>
-              {filter.FilterType === "dropdown" ? (
-                <SearchDropdown
-                  value={filterValues[filterKey] || ""}
-                  onChange={(val) => handleFilterChange(filterKey, val)}
-                  options={opts}
-                  placeholder={`Filter by ${filterLabel}`}
-                />
-              ) : (
-                <input
-                  type={filter.FilterType === "date" ? "date" : "text"}
-                  value={filterValues[filterKey] || ""}
-                  onChange={(e) => handleFilterChange(filterKey, e.target.value)}
-                  style={{
-                    height: "42px",
-                    border: "1px solid var(--border)",
-                    borderRadius: "12px",
-                    padding: "0 12px",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    outline: "none"
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
-
-        {/* View Switcher dropdown */}
-        {views.length > 0 && (
-          <div className="erp-filter-item">
-            <label>Arrangement View</label>
-            <SearchDropdown
-              value={activeViewID}
-              onChange={setActiveViewID}
-              options={views.map(v => ({ value: String(v.ViewID), label: v.ViewName }))}
-              placeholder="— Default Columns —"
-            />
-          </div>
-        )}
-
-        {/* Group By Switcher dropdown */}
-        {groupBys.length > 0 && (
-          <div className="erp-filter-item">
-            <label>Group By Summary</label>
-            <SearchDropdown
-              value={activeGroupByKey}
-              onChange={setActiveGroupByKey}
-              options={groupBys.map(g => ({ value: g.key, label: g.label }))}
-              placeholder="— Raw Records —"
-            />
-          </div>
-        )}
-        
-        {/* Clear Button */}
-        {filters.length > 0 && (
-          <button className="erp-filter-clear-btn" onClick={clearFilters}>
-            ✕ Reset Filters
+    <div className="erp-page-layout">
+      {/* Main Grid Area */}
+      <div className="erp-page-main">
+        {!panelOpen && (
+          <button className="erp-panel-toggle-tab" onClick={() => setPanelOpen(true)}>
+            🔍 Filters & Columns
           </button>
         )}
+        <DataGrid
+          title={pageName}
+          subtitle={isLiveMode ? "Live database config" : "Sandbox mock environment"}
+          columns={displayedColumns}
+          rows={rows}
+          loading={loading}
+          onRefresh={loadGridRows}
+        />
       </div>
 
-      {/* Main DataGrid */}
-      <DataGrid
-        title={pageName}
-        subtitle={isLiveMode ? "Live database config" : "Sandbox mock environment"}
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        onRefresh={loadGridRows}
-      />
+      {/* Right Control Panel */}
+      <aside className={`erp-right-panel ${panelOpen ? "open" : "collapsed"}`}>
+        <div className="erp-panel-header">
+          <h3>Control Panel</h3>
+          <button className="erp-panel-close-btn" onClick={() => setPanelOpen(false)}>
+            Hide Panel →
+          </button>
+        </div>
+
+        <div className="erp-panel-scroll">
+          {/* View & Group-By configuration */}
+          {(views.length > 0 || groupBys.length > 0) && (
+            <div className="erp-panel-section">
+              <h4>Layout Options</h4>
+              {views.length > 0 && (
+                <div className="erp-panel-field">
+                  <label>Arrangement View</label>
+                  <SearchDropdown
+                    value={activeViewID}
+                    onChange={setActiveViewID}
+                    options={views.map(v => ({ value: String(v.ViewID), label: v.ViewName }))}
+                    placeholder="— Default Columns —"
+                  />
+                </div>
+              )}
+
+              {groupBys.length > 0 && (
+                <div className="erp-panel-field">
+                  <label>Group By Summary</label>
+                  <SearchDropdown
+                    value={activeGroupByKey}
+                    onChange={setActiveGroupByKey}
+                    options={groupBys.map(g => ({ value: g.key, label: g.label }))}
+                    placeholder="— Raw Records —"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Filters section */}
+          {filters.length > 0 && (
+            <div className="erp-panel-section">
+              <div className="erp-section-header">
+                <h4>Filters</h4>
+                <button className="erp-section-clear-btn" onClick={clearFilters}>✕ Reset</button>
+              </div>
+              <div className="erp-panel-fields">
+                {filters.map(filter => {
+                  const filterKey = isLiveMode ? filter.key : filter.FilterCode;
+                  const filterLabel = isLiveMode ? filter.label : filter.DisplayName;
+                  const opts = dropdownOptions[filterKey] || [];
+                  return (
+                    <div key={filterKey} className="erp-panel-field">
+                      <label>{filterLabel}</label>
+                      {filter.FilterType === "dropdown" ? (
+                        <SearchDropdown
+                          value={filterValues[filterKey] || ""}
+                          onChange={(val) => handleFilterChange(filterKey, val)}
+                          options={opts}
+                          placeholder={`Filter by ${filterLabel}`}
+                        />
+                      ) : (
+                        <input
+                          type={filter.FilterType === "date" ? "date" : "text"}
+                          value={filterValues[filterKey] || ""}
+                          onChange={(e) => handleFilterChange(filterKey, e.target.value)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Display Fields Section */}
+          <div className="erp-panel-section">
+            <h4>Display Columns</h4>
+            <div className="erp-columns-list">
+              {columns.map(col => (
+                <label key={col.key} className="erp-col-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={visibleColumns[col.key] !== false}
+                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, [col.key]: e.target.checked }))}
+                  />
+                  <span>{col.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
