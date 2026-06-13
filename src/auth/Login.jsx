@@ -18,7 +18,7 @@ export default function Login() {
     setError("");
     try {
       const res = await apiCall("login", { Username: username, Password: password });
-      if (res.State === 0) {
+      if (res.state === 0) {
         const user = res.List0?.[0];
         login({
           UserID:   user?.UserID,
@@ -28,7 +28,7 @@ export default function Login() {
           Groups:   res.List2 || [],   // [{GroupID, GroupName}]
         });
       } else {
-        setError(res.Message || "Invalid username or password.");
+        setError(res.message || "Invalid username or password.");
       }
     } catch (e) {
       setError("Connection error. Please try again.");
