@@ -17,24 +17,15 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      if (username.toLowerCase() === "admin" && password === "admin") {
-        login({
-          UserID: "admin",
-          Username: "admin",
-          FullName: "Administrator (Mock)",
-          Pages: [],
-        });
-        setLoading(false);
-        return;
-      }
       const res = await apiCall("login", { Username: username, Password: password });
       if (res.State === 0) {
         const user = res.List0?.[0];
         login({
-          UserID:   user?.UserID   || username,
-          Username: user?.Username || username,
-          FullName: user?.FullName || username,
-          Pages:    res.List1      || [],
+          UserID:   user?.UserID,
+          Username: user?.Username,
+          FullName: user?.FullName,
+          Pages:    res.List1 || [],   // [{PageID, PageName, Icon, SortOrder}]
+          Groups:   res.List2 || [],   // [{GroupID, GroupName}]
         });
       } else {
         setError(res.Message || "Invalid username or password.");

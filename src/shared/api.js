@@ -7,6 +7,8 @@ const BASE_BODY = {
   AppVersionDesktop: '1',
   FireBaseToken: '',
   PlatForm: 'web',
+  DatabaseIP: '45.32.255.109',
+  DatabaseName: 'Visit',
 };
 
 export async function apiCall(operation, lineData = null, extraParams = {}) {
