@@ -74,6 +74,9 @@ export default function AppShell() {
 
   const activeTab = openTabs.find(t => t.PageID === activeTabID);
   const userInitials = session?.FullName ? session.FullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : "U";
+  const groupLabel = session?.Groups && session.Groups.length > 0
+    ? session.Groups.map(g => g.GroupName).join(", ")
+    : (session?.Pages && session.Pages.length > 0 ? "Live Session" : "Mock Session");
 
   return (
     <div className="erp-shell">
@@ -114,7 +117,7 @@ export default function AppShell() {
             <div className="erp-side-avatar">{userInitials}</div>
             <div>
               <strong>{session?.FullName || session?.Username}</strong>
-              <span>{session?.Pages && session.Pages.length > 0 ? "Live Session" : "Mock Session"}</span>
+              <span>{groupLabel}</span>
             </div>
           </div>
           <div className="erp-side-actions">

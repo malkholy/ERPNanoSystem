@@ -13,6 +13,7 @@ export function SessionProvider({ children }) {
       Username: userData.Username,
       FullName: userData.FullName || userData.Username,
       Pages:    userData.Pages || [],
+      Groups:   userData.Groups || [],
     });
   }, []);
 
