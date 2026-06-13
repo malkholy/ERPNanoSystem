@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./theme.css";
-import { SessionProvider, useSession } from "./auth/useSession";
+import { SessionProvider, useSession } from "./auth/useSession.jsx";
 import Login from "./auth/Login";
 
 function App() {

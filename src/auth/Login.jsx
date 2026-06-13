@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSession } from "./useSession";
+import { useSession } from "./useSession.jsx";
 import { apiCall } from "../shared/api";
 
 export default function Login() {
