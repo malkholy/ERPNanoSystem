@@ -75,7 +75,7 @@ export default function AppShell() {
   const activeTab = openTabs.find(t => t.PageID === activeTabID);
   const userInitials = session?.FullName ? session.FullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : "U";
   const groupLabel = session?.Groups && session.Groups.length > 0
-    ? session.Groups.map(g => g.GroupName).join(", ")
+    ? session.Groups.map(g => g.GroupName === "Customer Orders" ? "Customer Order" : g.GroupName).join(", ")
     : (session?.Pages && session.Pages.length > 0 ? "Live Session" : "Mock Session");
 
   return (
@@ -96,7 +96,9 @@ export default function AppShell() {
           </div>
         </div>
 
-        <div className="erp-side-section">Modules</div>
+        <div className="erp-side-section">
+          {session?.Groups && session.Groups.length > 0 ? groupLabel : "Modules"}
+        </div>
         <ul className="erp-side-menu">
           {menuPages.map(page => {
             const isActive = activeTabID === page.PageID;
