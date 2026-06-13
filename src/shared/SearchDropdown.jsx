@@ -59,11 +59,11 @@ export default function SearchDropdown({
   );
 
   const filtered = normalized.filter(o =>
-    o.label.toLowerCase().includes(search.toLowerCase()) ||
-    o.value.toLowerCase().includes(search.toLowerCase())
+    String(o.label ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    String(o.value ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  const selectedLabel = normalized.find(o => o.value === value)?.label || value;
+  const selectedLabel = normalized.find(o => String(o.value) === String(value))?.label || value;
 
   useEffect(() => {
     function handler(e) {

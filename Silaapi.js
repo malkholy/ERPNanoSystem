@@ -15,7 +15,7 @@ export async function apiCall(operation, lineData = null, extraParams = {}) {
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
-      'Sp_Name': 'CP.APIERPOperation',
+      'Sp_Name': 'CP.APICPOperation',
     },
     body: JSON.stringify({
       ...BASE_BODY,

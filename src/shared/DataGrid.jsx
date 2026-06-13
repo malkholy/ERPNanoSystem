@@ -90,7 +90,14 @@ function fmtNum(v) {
 }
 
 function calcSummary(rows, col, mode) {
-  const vals = rows.map(r => r[col]).filter(v => typeof v === "number");
+  const vals = rows
+    .map(r => {
+      const v = r[col];
+      if (typeof v === "number") return v;
+      if (typeof v === "string" && !isNaN(v) && v.trim() !== "") return Number(v);
+      return null;
+    })
+    .filter(v => v !== null);
   if (!vals.length || !mode || mode === "none") return "";
   if (mode === "count") return vals.length;
   if (mode === "sum") return fmtNum(vals.reduce((a, b) => a + b, 0));
