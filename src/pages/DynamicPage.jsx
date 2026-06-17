@@ -265,8 +265,45 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
     try {
       // Use the provided filters override if it exists, otherwise fall back to the state
       const activeFilters = filtersOverride && Object.keys(filtersOverride).length > 0 ? filtersOverride : filterValues;
-      const payload = { PageID: pageID, UserID: UserID, ...activeFilters };
-      const res = await apiCall("Get Page Data", payload, { Sp_Name: "APIERPOperation" });
+      
+      // Construct LineFilter array format expected by CP.APIERPOperation
+      const filterList = [];
+      filters.forEach(f => {
+        const isRange = f.FilterType && (
+          f.FilterType.toLowerCase().includes("range") ||
+          f.FilterType.toLowerCase().includes("from-to") ||
+          f.FilterType.toLowerCase().includes("from_to")
+        );
+        
+        const fieldName = f.PageKeyField || f.key;
+        if (isRange) {
+          const val1 = activeFilters[`${f.key}_From`];
+          const val2 = activeFilters[`${f.key}_To`];
+          if ((val1 !== undefined && val1 !== null && val1 !== "") || 
+              (val2 !== undefined && val2 !== null && val2 !== "")) {
+            filterList.push({
+              Field: fieldName,
+              Value1: val1 !== undefined && val1 !== null ? String(val1) : "",
+              Value2: val2 !== undefined && val2 !== null ? String(val2) : ""
+            });
+          }
+        } else {
+          const val = activeFilters[f.key];
+          if (val !== undefined && val !== null && val !== "") {
+            filterList.push({
+              Field: fieldName,
+              Value1: String(val),
+              Value2: ""
+            });
+          }
+        }
+      });
+
+      const payload = { PageID: pageID };
+      const res = await apiCall("Get Page Data", payload, { 
+        Sp_Name: "APIERPOperation",
+        LineFilter: filterList.length > 0 ? JSON.stringify(filterList) : null
+      });
       if (res.state === 0 || res.State === 0) {
         let dbRows = res.List0 || [];
         if (activeGroupByKey) {

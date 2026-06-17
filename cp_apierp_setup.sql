@@ -123,6 +123,7 @@ BEGIN
             pf.PageID,
             ISNULL(pf.FilterID, 0) AS FilterID,
             pf.FilterValueField AS [key],
+            pf.PageKeyField,
             pf.Label AS label,
             pf.FilterType,
             pf.SortOrder,
