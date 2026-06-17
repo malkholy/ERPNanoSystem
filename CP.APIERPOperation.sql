@@ -1,6 +1,7 @@
 CREATE OR ALTER PROCEDURE CP.APIERPOperation
     @Operation NVARCHAR(100),
     @LineData NVARCHAR(MAX) = NULL,
+    @LineFilter NVARCHAR(MAX) = NULL,
     @User NVARCHAR(500) = NULL,
     @Token NVARCHAR(500) = NULL,
     @SqlStatement NVARCHAR(MAX) = NULL,
@@ -165,138 +166,80 @@ BEGIN
     -- =========================================================================
     IF @Operation = 'Get Page Data'
     BEGIN
-        DECLARE @DataPageID INT;
-        DECLARE @DataUserID INT;
+	DECLARE @DatabaseName   NVARCHAR(500)
+    DECLARE @SchemaName     NVARCHAR(500)
+    DECLARE @TableName      NVARCHAR(500)
+    DECLARE @SQL            NVARCHAR(MAX)
+    DECLARE @WHERE          NVARCHAR(MAX) = ''
+    DECLARE @LineQuery      NVARCHAR(MAX)
 
-        SELECT 
-            @DataPageID = PageID,
-            @DataUserID = UserID
+	SELECT 
+            @PageID = PAgeID 
+           
         FROM OPENJSON(@LineData)
         WITH (
-            PageID INT,
-            UserID INT
-        );
+            PageID INT  );
 
-        -- Lookup page source table
-        DECLARE @SchemaName NVARCHAR(50);
-        DECLARE @TableName NVARCHAR(100);
+    -- get page info
+    SELECT 
+        @DatabaseName = DatabaseName,
+        @SchemaName   = SchemaName,
+        @TableName    = TableName
+    FROM [CP].[PageMaster]
+    WHERE PageID = @PageID
 
-        SELECT 
-            @SchemaName = SchemaName,
-            @TableName = TableName
-        FROM CP.PageMaster
-        WHERE PageID = @DataPageID;
+    IF @DatabaseName IS NULL
+    BEGIN
+        SET @State   = 0
+        SET @Message = 'Page not found'
+        RETURN
+    END
 
-        IF @TableName IS NULL OR @TableName = ''
-        BEGIN
-            SET @State = 1;
-            SET @Message = 'Source table not defined for this page.';
-            RETURN;
-        END
+    -- parse filters
+    IF @LineFilter IS NOT NULL AND LEN(@LineFilter) > 2
+    BEGIN
+        create table #TempFilter (
+            Field      nvarchar(500),
+            Value1     nvarchar(500),
+            Value2     nvarchar(500)
+        )
 
-        -- Build dynamic SQL select statement
-        DECLARE @SQL NVARCHAR(MAX);
-        SET @SQL = N'SELECT * FROM ' + QUOTENAME(@SchemaName) + N'.' + QUOTENAME(@TableName);
+        insert into #TempFilter (Field, Value1, Value2)
+        select Field, Value1, Value2
+        from openjson(@LineFilter)
+        with (
+            Field  nvarchar(500) '$.Field',
+            Value1 nvarchar(500) '$.Value1',
+            Value2 nvarchar(500) '$.Value2'
+        )
 
-        -- Lookup row-level security condition (substitution for @UserID and @Username)
-        DECLARE @RowCondition NVARCHAR(MAX) = NULL;
-        SELECT TOP 1 @RowCondition = z.CondSql
-        FROM CP.UserPageConditions z
-        WHERE UserID = @DataUserID AND PageID = @DataPageID;
-
-        IF @RowCondition IS NOT NULL AND @RowCondition <> ''
-        BEGIN
-            SET @RowCondition = REPLACE(@RowCondition, '{UserID}', CAST(@DataUserID AS VARCHAR(10)));
-            SET @RowCondition = REPLACE(@RowCondition, '{Username}', ISNULL(@User, ''));
-            
-            SET @SQL = @SQL + N' WHERE (' + @RowCondition + N')';
-        END
-
-        -- Parse dynamic filter inputs from the JSON LineData
-        IF OBJECT_ID('tempdb..#ActiveFilters') IS NOT NULL DROP TABLE #ActiveFilters;
-        
-        SELECT [key] AS FilterField, [value] AS FilterValue
-        INTO #ActiveFilters
-        FROM OPENJSON(@LineData)
-        WHERE [key] NOT IN ('PageID', 'UserID', 'ViewID', 'GroupByID');
-
-        DECLARE @FilterSQL NVARCHAR(MAX) = N'';
-        DECLARE @FldName NVARCHAR(100);
-        DECLARE @FldVal NVARCHAR(MAX);
-
-        DECLARE filter_cursor CURSOR FOR 
-        SELECT FilterField, FilterValue FROM #ActiveFilters WHERE FilterValue IS NOT NULL AND FilterValue <> '';
-
-        OPEN filter_cursor;
-        FETCH NEXT FROM filter_cursor INTO @FldName, @FldVal;
-
-        WHILE @@FETCH_STATUS = 0
-        BEGIN
-            -- Check if this filter field is configured as a date filter for this page
-            -- Since filter field name can be [ColumnName]_From or [ColumnName]_To,
-            -- we strip the suffix to find the actual database column and check config.
-            DECLARE @BaseCol NVARCHAR(100) = @FldName;
-            DECLARE @IsFrom INT = 0;
-            DECLARE @IsTo INT = 0;
-
-            IF @FldName LIKE '%\_From' ESCAPE '\'
-            BEGIN
-                SET @BaseCol = SUBSTRING(@FldName, 1, LEN(@FldName) - 5);
-                SET @IsFrom = 1;
+        -- build WHERE clause by joining with PageFilters
+        SELECT @WHERE = @WHERE +
+            CASE pf.FilterType
+                WHEN 'date' THEN
+                    ' AND ' + pf.PageKeyField + ' = ''' + tf.Value1 + ''''
+                WHEN 'datalist_range' THEN
+                    ' AND ' + pf.PageKeyField + ' BETWEEN ''' + tf.Value1 + ''' AND ''' + tf.Value2 + ''''
+                ELSE ''
             END
-            ELSE IF @FldName LIKE '%\_To' ESCAPE '\'
-            BEGIN
-                SET @BaseCol = SUBSTRING(@FldName, 1, LEN(@FldName) - 3);
-                SET @IsTo = 1;
-            END
+        FROM #TempFilter tf
+        INNER JOIN [CP].[PageFilters] pf 
+            ON pf.PageKeyField COLLATE DATABASE_DEFAULT = tf.Field COLLATE DATABASE_DEFAULT
+            AND pf.PageID = @PageID
+        WHERE pf.IsActive = 1
 
-            DECLARE @IsDateFilter INT = 0;
-            SELECT @IsDateFilter = COUNT(*)
-            FROM CP.PageFilters
-            WHERE PageID = @DataPageID 
-              AND FilterValueField = @BaseCol 
-              AND (FilterType LIKE '%date%' OR FilterType LIKE '%DateTime%');
+        drop table #TempFilter
+    END
 
-            IF @IsDateFilter > 0
-            BEGIN
-                -- Cast column and parameter to DATE type to perform date-only match
-                IF @IsFrom = 1
-                    SET @FilterSQL = @FilterSQL + N' AND CAST(' + QUOTENAME(@BaseCol) + N' AS DATE) >= CAST(N''' + REPLACE(@FldVal, N'''', N'''''') + N''' AS DATE)';
-                ELSE IF @IsTo = 1
-                    SET @FilterSQL = @FilterSQL + N' AND CAST(' + QUOTENAME(@BaseCol) + N' AS DATE) <= CAST(N''' + REPLACE(@FldVal, N'''', N'''''') + N''' AS DATE)';
-                ELSE
-                    SET @FilterSQL = @FilterSQL + N' AND CAST(' + QUOTENAME(@BaseCol) + N' AS DATE) = CAST(N''' + REPLACE(@FldVal, N'''', N'''''') + N''' AS DATE)';
-            END
-            ELSE
-            BEGIN
-                -- Standard comparison
-                IF @IsFrom = 1
-                    SET @FilterSQL = @FilterSQL + N' AND ' + QUOTENAME(@BaseCol) + N' >= N''' + REPLACE(@FldVal, N'''', N'''''') + N'''';
-                ELSE IF @IsTo = 1
-                    SET @FilterSQL = @FilterSQL + N' AND ' + QUOTENAME(@BaseCol) + N' <= N''' + REPLACE(@FldVal, N'''', N'''''') + N'''';
-                ELSE
-                    SET @FilterSQL = @FilterSQL + N' AND ' + QUOTENAME(@BaseCol) + N' = N''' + REPLACE(@FldVal, N'''', N'''''') + N'''';
-            END
+    -- build final sql
+    SET @SQL = 'SELECT * FROM [' + @DatabaseName + '].[' + @SchemaName + '].[' + @TableName + ']'
 
-            FETCH NEXT FROM filter_cursor INTO @FldName, @FldVal;
-        END
-
-        CLOSE filter_cursor;
-        DEALLOCATE filter_cursor;
-
-        IF @FilterSQL <> ''
-        BEGIN
-            IF @SQL LIKE N'% WHERE %'
-                SET @SQL = @SQL + @FilterSQL;
-            ELSE
-                SET @SQL = @SQL + N' WHERE ' + SUBSTRING(@FilterSQL, 6, LEN(@FilterSQL)); -- Strip leading ' AND '
-        END
-
-        -- Execute the final dynamic query
-        EXEC sp_executesql @SQL;
-
-        IF OBJECT_ID('tempdb..#ActiveFilters') IS NOT NULL DROP TABLE #ActiveFilters;
-        RETURN;
+    IF LEN(@WHERE) > 0
+        SET @SQL = @SQL + ' WHERE 1=1 ' + @WHERE
+	print @sql 
+    -- execute
+    EXEC sp_executesql @SQL
+       
     END
 
     -- =========================================================================
