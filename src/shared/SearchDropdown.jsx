@@ -20,19 +20,22 @@ const CSS = `
 .sd-clear { height:34px; width:100%; border:0; border-top:1px solid var(--border); background:var(--soft); color:var(--muted); font-size:12px; font-weight:900; cursor:pointer; border-radius:0 0 12px 12px; }
 .sd-clear:hover { background:var(--primary-soft); color:var(--primary-dark); }
 
-.sd-table-wrap { overflow: auto; max-height: 220px; border-radius: 0 0 12px 12px; }
-table.sd-table { width: 100%; border-collapse: collapse; min-width: 100%; table-layout: auto; }
-table.sd-table th, table.sd-table td { padding: 10px 12px; text-align: left; font-size: 12.5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-table.sd-table th { background: var(--soft); font-weight: 900; color: var(--muted); position: sticky; top: 0; z-index: 2; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; border-bottom: 2px solid var(--border); }
-table.sd-table tr { cursor: pointer; transition: background 0.1s; }
-table.sd-table tr:hover td { background: var(--primary-soft); color: var(--primary-dark); }
-table.sd-table tr.active td { background: var(--primary-soft); color: var(--primary-dark); font-weight: 900; }
+/* Option 3 — ID badge + name inline + trailing detail */
+.sd-row { padding:10px 13px; cursor:pointer; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.sd-row:hover { background:var(--primary-soft); }
+.sd-row:hover .sd-row-name { color:var(--primary-dark); }
+.sd-row.active { background:var(--primary-soft); }
+.sd-row.active .sd-row-name { color:var(--primary-dark); font-weight:900; }
+.sd-row-badge { font-size:10px; border:1px solid var(--border); color:var(--muted); border-radius:5px; padding:1px 7px; white-space:nowrap; flex-shrink:0; font-weight:800; }
+.sd-row.active .sd-row-badge { border-color:var(--primary); color:var(--primary-dark); }
+.sd-row-name { font-size:13px; font-weight:700; color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; }
+.sd-row-detail { font-size:11px; color:var(--muted); flex-shrink:0; }
 `;
 
 function injectCSS() {
-  if (document.getElementById("sd-css")) return;
+  if (document.getElementById("sd-css-v2")) return;
   const s = document.createElement("style");
-  s.id = "sd-css";
+  s.id = "sd-css-v2";
   s.textContent = CSS;
   document.head.appendChild(s);
 }
@@ -156,39 +159,33 @@ export default function SearchDropdown({
           </div>
 
           {isMultiCol ? (
-            <div className="sd-table-wrap">
-              <table className="sd-table">
-                <thead>
-                  <tr>
-                    {headers.map(h => (
-                      <th key={h}>{h.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={headers.length} className="sd-empty">No results</td>
-                    </tr>
-                  ) : (
-                    filtered.map((item, idx) => {
-                      const itemVal = item[valKey];
-                      const isActive = String(itemVal) === String(value);
-                      return (
-                        <tr 
-                          key={idx} 
-                          className={isActive ? "active" : ""}
-                          onClick={() => select(itemVal)}
-                        >
-                          {headers.map(h => (
-                            <td key={h}>{String(item[h] ?? "")}</td>
-                          ))}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+            <div className="sd-list">
+              {filtered.length === 0 ? (
+                <div className="sd-empty">No results</div>
+              ) : (
+                filtered.map((item, idx) => {
+                  const itemVal = item[valKey];
+                  const isActive = String(itemVal) === String(value);
+                  // first column = badge, second = name, rest = trailing detail(s)
+                  const badge  = String(item[headers[0]] ?? "");
+                  const name   = headers[1] ? String(item[headers[1]] ?? "") : "";
+                  const detail = headers.slice(2)
+                    .map(h => String(item[h] ?? ""))
+                    .filter(Boolean)
+                    .join(" · ");
+                  return (
+                    <div
+                      key={idx}
+                      className={`sd-row ${isActive ? "active" : ""}`}
+                      onClick={() => select(itemVal)}
+                    >
+                      <span className="sd-row-badge">{badge}</span>
+                      {name && <span className="sd-row-name">{name}</span>}
+                      {detail && <span className="sd-row-detail">{detail}</span>}
+                    </div>
+                  );
+                })
+              )}
             </div>
           ) : (
             <div className="sd-list">
