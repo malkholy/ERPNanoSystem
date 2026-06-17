@@ -503,14 +503,25 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
                       {isRange ? (
                         <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                           <div style={{ flex: 1 }}>
-                            <input
-                              type={isDate ? "date" : "text"}
-                              value={filterValues[`${filterKey}_From`] || ""}
-                              onChange={(e) => handleFilterChange(`${filterKey}_From`, e.target.value)}
-                              placeholder="From"
-                              style={{ width: "100%" }}
-                            />
-                            {!isDate && resolveDisplayName(filter, filterValues[`${filterKey}_From`]) && (
+                            {isDropdown ? (
+                              <SearchDropdown
+                                value={filterValues[`${filterKey}_From`] || ""}
+                                onChange={(val) => handleFilterChange(`${filterKey}_From`, val)}
+                                options={opts}
+                                valueKey={filter.FilterValueField}
+                                placeholder="From"
+                                style={{ height: 38, borderRadius: 10, fontSize: 13 }}
+                              />
+                            ) : (
+                              <input
+                                type={isDate ? "date" : "text"}
+                                value={filterValues[`${filterKey}_From`] || ""}
+                                onChange={(e) => handleFilterChange(`${filterKey}_From`, e.target.value)}
+                                placeholder="From"
+                                style={{ width: "100%" }}
+                              />
+                            )}
+                            {!isDate && !isDropdown && resolveDisplayName(filter, filterValues[`${filterKey}_From`]) && (
                               <div style={{ fontSize: 12, color: "var(--blue)", fontWeight: 700, marginTop: 5 }}>
                                 {resolveDisplayName(filter, filterValues[`${filterKey}_From`])}
                               </div>
@@ -518,14 +529,25 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
                           </div>
                           <span style={{ color: "var(--muted)", fontSize: 14, fontWeight: "bold", marginTop: 10 }}>→</span>
                           <div style={{ flex: 1 }}>
-                            <input
-                              type={isDate ? "date" : "text"}
-                              value={filterValues[`${filterKey}_To`] || ""}
-                              onChange={(e) => handleFilterChange(`${filterKey}_To`, e.target.value)}
-                              placeholder="To"
-                              style={{ width: "100%" }}
-                            />
-                            {!isDate && resolveDisplayName(filter, filterValues[`${filterKey}_To`]) && (
+                            {isDropdown ? (
+                              <SearchDropdown
+                                value={filterValues[`${filterKey}_To`] || ""}
+                                onChange={(val) => handleFilterChange(`${filterKey}_To`, val)}
+                                options={opts}
+                                valueKey={filter.FilterValueField}
+                                placeholder="To"
+                                style={{ height: 38, borderRadius: 10, fontSize: 13 }}
+                              />
+                            ) : (
+                              <input
+                                type={isDate ? "date" : "text"}
+                                value={filterValues[`${filterKey}_To`] || ""}
+                                onChange={(e) => handleFilterChange(`${filterKey}_To`, e.target.value)}
+                                placeholder="To"
+                                style={{ width: "100%" }}
+                              />
+                            )}
+                            {!isDate && !isDropdown && resolveDisplayName(filter, filterValues[`${filterKey}_To`]) && (
                               <div style={{ fontSize: 12, color: "var(--blue)", fontWeight: 700, marginTop: 5 }}>
                                 {resolveDisplayName(filter, filterValues[`${filterKey}_To`])}
                               </div>
@@ -538,7 +560,7 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
                             value={filterValues[filterKey] || ""}
                             onChange={(val) => handleFilterChange(filterKey, val)}
                             options={opts}
-                            valueKey={filterKey}
+                            valueKey={filter.FilterValueField}
                             placeholder={`Filter by ${filterLabel}`}
                           />
                         ) : (
