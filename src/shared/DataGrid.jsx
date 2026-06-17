@@ -72,6 +72,9 @@ table.dg-table tfoot td.dg-summary-cell:hover{background:var(--primary-soft)!imp
 .dg-th-inner{display:flex;align-items:center;position:relative}
 .dg-resize-handle{position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize;z-index:1;background:transparent}
 .dg-resize-handle:hover{background:var(--primary)}
+.dg-loader-wrap { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 30px; color: var(--muted); font-weight: 800; font-size: 14px; }
+.dg-spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top: 3px solid var(--primary); border-radius: 50%; animation: dg-spin 0.8s linear infinite; }
+@keyframes dg-spin { to { transform: rotate(360deg); } }
 `;
 
 function injectCSS() {
@@ -122,6 +125,9 @@ export default function DataGrid({
   onDuplicate,
   onRefresh,
   extraButtons = [],
+  hideHeader = false,
+  controlPanel = null,
+  viewDropdown = null,
 }) {
   injectCSS();
 
@@ -129,7 +135,7 @@ export default function DataGrid({
   const [sortCol, setSortCol]       = useState("");
   const [sortDir, setSortDir]       = useState("asc");
   const [pageIdx, setPageIdx]       = useState(1);
-  const [pageSize, setPageSize]     = useState(25);
+  const [pageSize, setPageSize]     = useState(500);
   const [selected, setSelected]     = useState(new Set());
   const [hidden, setHidden]         = useState(new Set());
   const [colWidths, setColWidths]     = useState({});
@@ -348,12 +354,14 @@ export default function DataGrid({
 
   return (
     <div tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: "none" }}>
-      <div className="dg-page-head">
-        <div>
-          <h1>{title}</h1>
-          {subtitle && <div className="dg-muted">{subtitle}</div>}
+      {!hideHeader && (
+        <div className="dg-page-head">
+          <div>
+            <h1>{title}</h1>
+            {subtitle && <div className="dg-muted">{subtitle}</div>}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="dg-grid-panel">
         <div className="dg-grid-title">
@@ -371,6 +379,7 @@ export default function DataGrid({
           {extraButtons.map((b,i) => (
             <button key={i} className={`dg-btn ${b.className||""}`} onClick={b.onClick}>{b.label}</button>
           ))}
+          {viewDropdown}
           <input className="dg-search" placeholder="Search in grid..."
             value={search} onChange={e => { setSearch(e.target.value); setPageIdx(1); }} />
           <div className="dg-export-wrap" ref={exportMenuRef}>
@@ -387,6 +396,8 @@ export default function DataGrid({
           </div>
         </div>
 
+        {controlPanel && <div className="dg-control-panel-wrapper">{controlPanel}</div>}
+ 
         <div className="dg-table-wrap">
           <table className="dg-table">
             <thead>
@@ -406,7 +417,16 @@ export default function DataGrid({
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={visCols.length} style={{ textAlign:"center", padding:30, color:"var(--muted)" }}>Loading…</td></tr>}
+              {loading && (
+                <tr>
+                  <td colSpan={visCols.length}>
+                    <div className="dg-loader-wrap">
+                      <div className="dg-spinner" />
+                      <span>Loading data...</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
               {!loading && pageRows.length === 0 && <tr><td colSpan={visCols.length} style={{ textAlign:"center", padding:30, color:"var(--muted)" }}>No records found</td></tr>}
               {!loading && pageRows.map((row, i) => (
                 <tr key={i}

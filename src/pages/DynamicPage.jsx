@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useSession } from "../auth/useSession.jsx";
 import { apiCall } from "../shared/api.js";
 import DataGrid from "../shared/DataGrid.jsx";
 import SearchDropdown from "../shared/SearchDropdown.jsx";
@@ -12,145 +11,36 @@ const badgeStyle = (val) => {
   return { background: "var(--blue-soft)", color: "var(--blue)" };
 };
 
-const MOCK_CONFIGS = {
-  Customers: {
-    columns: [
-      { key: "CustomerID", label: "ID", numeric: false },
-      { key: "CustomerName", label: "Customer Name", numeric: false },
-      { key: "ContactName", label: "Contact Name", numeric: false },
-      { key: "Country", label: "Country", numeric: false },
-      { key: "Balance", label: "Balance", numeric: true, SummaryMode: "sum" },
-      { key: "Status", label: "Status", numeric: false, render: (v) => <span className="dg-badge" style={badgeStyle(v)}>{v}</span> },
-    ],
-    filters: [
-      { FilterCode: "Country", DisplayName: "Country", FilterType: "dropdown", SourceOptions: ["USA", "UK", "Egypt", "UAE"] },
-      { FilterCode: "Status", DisplayName: "Status", FilterType: "dropdown", SourceOptions: ["Active", "Inactive"] },
-    ],
-    views: [
-      { ViewID: 101, ViewName: "Minimal View" },
-      { ViewID: 102, ViewName: "Contact Directory" },
-    ],
-    viewFields: [
-      { ViewID: 101, FieldID: 1, key: "CustomerName", SortOrder: 1 },
-      { ViewID: 101, FieldID: 2, key: "Balance", SortOrder: 2 },
-      { ViewID: 102, FieldID: 1, key: "CustomerName", SortOrder: 1 },
-      { ViewID: 102, FieldID: 2, key: "ContactName", SortOrder: 2 },
-      { ViewID: 102, FieldID: 3, key: "Country", SortOrder: 3 },
-      { ViewID: 102, FieldID: 4, key: "Status", SortOrder: 4 },
-    ],
-    groupBys: [
-      { GroupByID: 201, key: "Country", label: "Group by Country" },
-      { GroupByID: 202, key: "Status", label: "Group by Status" },
-    ],
-    rows: [
-      { CustomerID: 1, CustomerName: "Acme Corporation", ContactName: "John Doe", Country: "USA", Balance: 4500.00, Status: "Active" },
-      { CustomerID: 2, CustomerName: "Global Trade Ltd", ContactName: "Sara Smith", Country: "UK", Balance: 12300.50, Status: "Active" },
-      { CustomerID: 3, CustomerName: "Sila Systems LLC", ContactName: "Ali Malkholy", Country: "Egypt", Balance: 0.00, Status: "Active" },
-      { CustomerID: 4, CustomerName: "Delta Distributors", ContactName: "David Vane", Country: "USA", Balance: -120.00, Status: "Active" },
-      { CustomerID: 5, CustomerName: "Omega Ventures", ContactName: "Mona Taha", Country: "UAE", Balance: 8750.20, Status: "Inactive" },
-    ]
-  },
-  Items: {
-    columns: [
-      { key: "ItemID", label: "ID", numeric: false },
-      { key: "ItemName", label: "Product Name", numeric: false },
-      { key: "Category", label: "Category", numeric: false },
-      { key: "Price", label: "Price", numeric: true, SummaryMode: "avg" },
-      { key: "StockQty", label: "In Stock", numeric: true, SummaryMode: "sum" },
-      { key: "Status", label: "Status", numeric: false, render: (v) => <span className="dg-badge" style={badgeStyle(v)}>{v}</span> },
-    ],
-    filters: [
-      { FilterCode: "Category", DisplayName: "Category", FilterType: "dropdown", SourceOptions: ["Electronics", "Furniture", "Apparel"] },
-    ],
-    views: [],
-    viewFields: [],
-    groupBys: [
-      { GroupByID: 203, key: "Category", label: "Group by Category" }
-    ],
-    rows: [
-      { ItemID: 1, ItemName: "Vite Laptop Pro", Category: "Electronics", Price: 1299.99, StockQty: 45, Status: "Active" },
-      { ItemID: 2, ItemName: "Mechanical Keyboard", Category: "Electronics", Price: 89.50, StockQty: 120, Status: "Active" },
-      { ItemID: 3, ItemName: "Ergonomic Office Chair", Category: "Furniture", Price: 249.00, StockQty: 15, Status: "Active" },
-      { ItemID: 4, ItemName: "Type-C Fast Charger", Category: "Electronics", Price: 19.99, StockQty: 500, Status: "Active" },
-      { ItemID: 5, ItemName: "Leather Notebook Set", Category: "Apparel", Price: 35.00, StockQty: 60, Status: "Active" },
-    ]
-  },
-  SalesOrders: {
-    columns: [
-      { key: "OrderID", label: "Order #", numeric: false },
-      { key: "CustomerName", label: "Customer", numeric: false },
-      { key: "OrderDate", label: "Date", numeric: false },
-      { key: "TotalAmount", label: "Order Total", numeric: true, SummaryMode: "sum" },
-      { key: "PaymentStatus", label: "Status", numeric: false, render: (v) => <span className="dg-badge" style={badgeStyle(v)}>{v}</span> },
-    ],
-    filters: [
-      { FilterCode: "PaymentStatus", DisplayName: "Payment Status", FilterType: "dropdown", SourceOptions: ["Paid", "Pending", "Overdue"] },
-    ],
-    views: [],
-    viewFields: [],
-    groupBys: [
-      { GroupByID: 204, key: "PaymentStatus", label: "Group by Status" }
-    ],
-    rows: [
-      { OrderID: 1001, CustomerName: "Acme Corporation", OrderDate: "2026-06-01", TotalAmount: 250.00, PaymentStatus: "Paid" },
-      { OrderID: 1002, CustomerName: "Global Trade Ltd", OrderDate: "2026-06-10", TotalAmount: 12300.50, PaymentStatus: "Pending" },
-      { OrderID: 1003, CustomerName: "Delta Distributors", OrderDate: "2026-06-12", TotalAmount: 19.99, PaymentStatus: "Paid" },
-      { OrderID: 1004, CustomerName: "Sila Systems LLC", OrderDate: "2026-06-13", TotalAmount: 850.00, PaymentStatus: "Overdue" },
-    ]
-  },
-  Invoices: {
-    columns: [
-      { key: "InvoiceID", label: "Invoice #", numeric: false },
-      { key: "OrderID", label: "Order #", numeric: false },
-      { key: "InvoiceDate", label: "Date", numeric: false },
-      { key: "Amount", label: "Amount Due", numeric: true, SummaryMode: "sum" },
-      { key: "Status", label: "Status", numeric: false, render: (v) => <span className="dg-badge" style={badgeStyle(v)}>{v}</span> },
-    ],
-    filters: [
-      { FilterCode: "Status", DisplayName: "Invoice Status", FilterType: "dropdown", SourceOptions: ["Paid", "Sent", "Unpaid", "Draft"] },
-    ],
-    views: [],
-    viewFields: [],
-    groupBys: [
-      { GroupByID: 205, key: "Status", label: "Group by Status" }
-    ],
-    rows: [
-      { InvoiceID: 5001, OrderID: 1001, InvoiceDate: "2026-06-01", Amount: 250.00, Status: "Paid" },
-      { InvoiceID: 5002, OrderID: 1003, InvoiceDate: "2026-06-12", Amount: 19.99, Status: "Paid" },
-      { InvoiceID: 5003, OrderID: 1002, InvoiceDate: "2026-06-10", Amount: 6000.00, Status: "Sent" },
-      { InvoiceID: 5004, OrderID: 1004, InvoiceDate: "2026-06-13", Amount: 850.00, Status: "Unpaid" },
-    ]
-  }
-};
-
 const PAGE_CSS = `
-.erp-page-layout { display: flex; gap: 24px; position: relative; }
-.erp-page-main { flex: 1; min-width: 0; }
-.erp-panel-toggle-tab { position: fixed; right: 0; top: 120px; z-index: 29; background: var(--primary); color: #fff; border: 0; border-radius: 12px 0 0 12px; padding: 12px 14px; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; box-shadow: var(--shadow); display: flex; align-items: center; gap: 6px; transition: background 0.15s; }
-.erp-panel-toggle-tab:hover { background: var(--primary-dark); }
-.erp-right-panel { width: 280px; flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; transition: all 0.2s ease-in-out; }
-.erp-right-panel.collapsed { width: 0; opacity: 0; padding: 0; margin-left: -24px; border: 0; pointer-events: none; }
-.erp-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-.erp-panel-header h3 { font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; }
-.erp-panel-close-btn { background: none; border: 0; color: var(--primary); font-weight: 900; font-size: 12px; cursor: pointer; }
-.erp-panel-close-btn:hover { color: var(--primary-dark); }
-.erp-panel-scroll { display: flex; flex-direction: column; gap: 20px; }
-.erp-panel-section { display: flex; flex-direction: column; gap: 12px; }
-.erp-panel-section h4 { font-size: 11px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-.erp-section-header { display: flex; justify-content: space-between; align-items: center; }
-.erp-section-clear-btn { background: none; border: 0; color: var(--red); font-weight: 850; font-size: 11px; cursor: pointer; }
-.erp-section-clear-btn:hover { text-decoration: underline; }
-.erp-panel-fields { display: flex; flex-direction: column; gap: 12px; }
-.erp-panel-field { display: flex; flex-direction: column; gap: 6px; }
-.erp-panel-field label { font-size: 11px; font-weight: 850; color: var(--muted); text-transform: uppercase; }
-.erp-panel-field input { height: 42px; border: 1px solid var(--border); border-radius: 12px; padding: 0 12px; font-size: 13px; font-weight: 700; outline: none; background: var(--soft); }
-.erp-panel-field input:focus { border-color: var(--primary); }
-.erp-columns-list { display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; padding-right: 4px; }
-.erp-columns-list::-webkit-scrollbar { width: 4px; }
-.erp-columns-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
-.erp-col-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; cursor: pointer; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--soft); transition: all 0.1s; }
-.erp-col-checkbox:hover { border-color: var(--primary); }
-.erp-col-checkbox input { width: 16px; height: 16px; cursor: pointer; }
+.erp-page-layout { display: block; position: relative; }
+.erp-page-main { width: 100%; }
+.erp-accordion-container { border-bottom: 1px solid var(--border); }
+.erp-accordion-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.erp-accordion-tabs { display: flex; gap: 10px; flex-wrap: wrap; }
+.erp-accordion-tab { display: inline-flex; align-items: center; gap: 8px; height: 34px; border: 1px solid var(--border); background: var(--surface); border-radius: 99px; padding: 0 16px; font-weight: 800; font-size: 12.5px; cursor: pointer; color: var(--text); transition: all 0.15s ease; }
+.erp-accordion-tab:hover { border-color: var(--primary); background: var(--soft); }
+.erp-accordion-chevron { width: 32px; height: 32px; border: 1px solid var(--border); background: var(--surface); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; font-weight: 900; color: var(--muted); transition: all 0.15s; }
+.erp-accordion-chevron:hover { border-color: var(--primary); color: var(--primary); background: var(--soft); }
+.erp-accordion-body { background: #f8fafc; border-bottom: 1px solid var(--border); padding: 20px 24px; transition: all 0.2s ease-in-out; }
+.erp-section-title { font-size: 11px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; display: block; }
+.erp-filters-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px 20px; margin-bottom: 20px; }
+.erp-filter-item { display: flex; flex-direction: column; gap: 6px; }
+.erp-filter-item label { font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.erp-filter-item input, .erp-filter-item select { height: 38px; border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; font-size: 13px; font-weight: 750; outline: none; background: var(--surface); transition: all 0.15s; }
+.erp-filter-item input:focus, .erp-filter-item select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.erp-options-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 20px; }
+.erp-options-fields { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.erp-col-dropdown-btn { height: 38px; border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 0 14px; font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; justify-content: space-between; min-width: 160px; text-align: left; transition: all 0.15s; }
+.erp-col-dropdown-btn:hover { border-color: var(--primary); }
+.erp-col-dropdown-menu { position: absolute; top: calc(100% + 6px); left: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); z-index: 1000; padding: 10px; min-width: 200px; max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.erp-col-dropdown-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: background 0.1s; color: var(--text); }
+.erp-col-dropdown-item:hover { background: var(--soft); }
+.erp-dropdown-backdrop { position: fixed; inset: 0; z-index: 999; background: transparent; }
+.erp-action-btns { display: flex; gap: 10px; }
+.erp-btn-reset { height: 38px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 10px; padding: 0 16px; font-weight: 900; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+.erp-btn-reset:hover { border-color: var(--muted); color: var(--text); background: var(--soft); }
+.erp-btn-apply { height: 38px; border: 0; background: var(--primary); color: #fff; border-radius: 10px; padding: 0 18px; font-weight: 900; font-size: 13px; cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 8px var(--primary-soft); }
+.erp-btn-apply:hover { background: var(--primary-dark); transform: translateY(-1px); }
 `;
 
 function injectPageCSS() {
@@ -161,9 +51,45 @@ function injectPageCSS() {
   document.head.appendChild(s);
 }
 
-export default function DynamicPage({ pageID, pageName }) {
+function resolveDateDefault(val) {
+  if (!val) return "";
+  const d = new Date();
+  const fmt = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const r = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${r}`;
+  };
+  const v = val.toLowerCase().trim();
+  if (v === "today") return fmt(d);
+  if (v === "yesterday") {
+    d.setDate(d.getDate() - 1);
+    return fmt(d);
+  }
+  if (v === "last week") {
+    d.setDate(d.getDate() - 7);
+    return fmt(d);
+  }
+  if (v === "month began") {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  }
+  if (v === "last month") {
+    let m = d.getMonth() - 1;
+    let y = d.getFullYear();
+    if (m < 0) {
+      m = 11;
+      y -= 1;
+    }
+    return `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  }
+  if (v === "year began") {
+    return `${d.getFullYear()}-01-01`;
+  }
+  return val;
+}
+
+export default function DynamicPage({ pageID, pageName, onBack }) {
   injectPageCSS();
-  const { session } = useSession();
   const [baseColumns, setBaseColumns] = useState([]);
   const [columns, setColumns] = useState([]);
   const [filters, setFilters] = useState([]);
@@ -181,8 +107,9 @@ export default function DynamicPage({ pageID, pageName }) {
   const [loading, setLoading] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [visibleColumns, setVisibleColumns] = useState({});
+  const [colDropdownOpen, setColDropdownOpen] = useState(false);
 
-  const isLiveMode = session?.Pages && session.Pages.length > 0;
+  const UserID = sessionStorage.getItem('UserID') || '1';
 
   useEffect(() => {
     if (baseColumns.length > 0) {
@@ -214,7 +141,7 @@ export default function DynamicPage({ pageID, pageName }) {
         // Sort and select configured view fields
         const sortedFields = [...activeFields].sort((a, b) => a.SortOrder - b.SortOrder);
         const viewCols = sortedFields
-          .map(vf => baseColumns.find(bc => bc.key === vf.key))
+          .map(vf => baseColumns.find(bc => bc.key === (vf.FieldName || vf.key)))
           .filter(Boolean);
         setColumns(viewCols);
       } else {
@@ -225,17 +152,19 @@ export default function DynamicPage({ pageID, pageName }) {
     }
   }, [activeViewID, baseColumns, viewFields]);
 
-  // Trigger grid data loading
+  // Trigger grid data loading initially
   useEffect(() => {
     if (baseColumns.length > 0) {
       loadGridRows();
     }
-  }, [baseColumns, filterValues, activeGroupByKey]);
+  }, [baseColumns]);
 
   // Load Columns, Filters, Views, and Group-bys configurations
   async function loadPageSetup() {
     setLoading(true);
-    // Reset view/group configs
+    setBaseColumns([]);
+    setColumns([]);
+    setFilterValues({});
     setActiveViewID("");
     setActiveGroupByKey("");
     setViews([]);
@@ -243,67 +172,66 @@ export default function DynamicPage({ pageID, pageName }) {
     setGroupBys([]);
 
     try {
-      if (isLiveMode) {
-        const res = await apiCall("Get Page Info", { PageID: pageID });
-        if (res.state === 0 || res.State === 0) {
-          // Columns (List0)
-          const mappedCols = (res.List0 || []).map(col => ({
-            key: col.key,
-            label: col.label,
-            numeric: col.Format === "number",
-            SummaryMode: "none",
-            render: col.DataType === "badge" ? (v) => <span className="dg-badge" style={badgeStyle(v)}>{v}</span> : undefined
-          }));
-          setBaseColumns(mappedCols);
-          setColumns(mappedCols);
+      const res = await apiCall("Get Page Info", { PageID: pageID }, { Sp_Name: "APIERPOperation" });
+      if (res.state === 0 || res.State === 0) {
+        // Filters (List1)
+        const mappedFilters = res.List1 || [];
+        setFilters(mappedFilters);
 
-          // Filters (List1)
-          const mappedFilters = res.List1 || [];
-          setFilters(mappedFilters);
+        // Group By (List2)
+        setGroupBys(res.List2 || []);
 
-          // Group By (List2)
-          setGroupBys(res.List2 || []);
+        // Views (List3)
+        setViews(res.List3 || []);
 
-          // Views (List3)
-          setViews(res.List3 || []);
+        // View Fields (List4)
+        setViewFields(res.List4 || []);
 
-          // View Fields (List4)
-          setViewFields(res.List4 || []);
-
-          // Initialize filter inputs
-          const initVals = {};
-          mappedFilters.forEach(f => { initVals[f.key] = "" });
-          setFilterValues(initVals);
-
-          // Fetch dropdown options for dropdown filters
-          mappedFilters.forEach(f => {
-            if (f.FilterType === "dropdown") {
-              loadDropdownOpts(f.key, f.FilterID);
-            }
-          });
-        }
-      } else {
-        // Fallback Mock Configs
-        const mock = MOCK_CONFIGS[pageID] || { columns: [], filters: [], rows: [], views: [], viewFields: [], groupBys: [] };
-        setBaseColumns(mock.columns);
-        setColumns(mock.columns);
-        setFilters(mock.filters);
-        setViews(mock.views);
-        setViewFields(mock.viewFields);
-        setGroupBys(mock.groupBys);
-        
+        // Initialize filter inputs
         const initVals = {};
-        mock.filters.forEach(f => { initVals[f.FilterCode] = "" });
-        setFilterValues(initVals);
-
-        // Map mock options
-        const opts = {};
-        mock.filters.forEach(f => {
-          if (f.SourceOptions) {
-            opts[f.FilterCode] = f.SourceOptions.map(o => ({ value: o, label: o }));
+        mappedFilters.forEach(f => {
+          const isDate = f.FilterType && (
+            f.FilterType.toLowerCase().includes("date") ||
+            f.FilterType.toLowerCase().includes("datetime")
+          );
+          const isRange = f.FilterType && (
+            f.FilterType.toLowerCase().includes("range") ||
+            f.FilterType.toLowerCase().includes("from-to") ||
+            f.FilterType.toLowerCase().includes("from_to")
+          );
+          const def = f.DefaultValue || "";
+          const resolvedVal = isDate ? resolveDateDefault(def) : def;
+          
+          if (isRange) {
+            initVals[`${f.key}_From`] = resolvedVal;
+            initVals[`${f.key}_To`] = "";
+          } else {
+            initVals[f.key] = resolvedVal;
           }
         });
-        setDropdownOptions(opts);
+        setFilterValues(initVals);
+
+        // Fetch dropdown options for dropdown filters
+        mappedFilters.forEach(f => {
+          const isDropdown = f.FilterType && (
+            f.FilterType.toLowerCase().includes("dropdown") ||
+            f.FilterType.toLowerCase().includes("datalist")
+          );
+          if (isDropdown) {
+            loadDropdownOpts(f.key, f.FilterID, f.FilterValueField, f.FilterDisplayField);
+          }
+        });
+
+        // Columns (List0)
+        const mappedCols = (res.List0 || []).map(col => ({
+          key: col.key,
+          label: col.label,
+          numeric: col.Format === "number",
+          SummaryMode: "none",
+          render: col.DataType === "badge" ? (v) => <span className="dg-badge" style={badgeStyle(v)}>{v}</span> : undefined
+        }));
+        setBaseColumns(mappedCols);
+        setColumns(mappedCols);
       }
     } catch (e) {
       console.error("Failed to load page setup:", e);
@@ -313,9 +241,13 @@ export default function DynamicPage({ pageID, pageName }) {
   }
 
   // Fetch dropdown lookup options generically
-  async function loadDropdownOpts(filterCode, filterID) {
+  async function loadDropdownOpts(filterCode, filterID, valueField = null, displayField = null) {
     try {
-      const res = await apiCall("Get Filter Options", { FilterID: filterID });
+      const payload = { FilterID: filterID };
+      if (valueField) payload.ValueField = valueField;
+      if (displayField) payload.DisplayField = displayField;
+      
+      const res = await apiCall("Get Filter Options", payload, { Sp_Name: "APIERPOperation" });
       if (res.state === 0 || res.State === 0) {
         setDropdownOptions(prev => ({
           ...prev,
@@ -328,36 +260,19 @@ export default function DynamicPage({ pageID, pageName }) {
   }
 
   // Load grid rows matching active filters & group-bys
-  async function loadGridRows() {
+  async function loadGridRows(filtersOverride = null) {
     setLoading(true);
     try {
-      if (isLiveMode) {
-        const payload = { PageID: pageID, UserID: session.UserID, ...filterValues };
-        const res = await apiCall("Get Page Data", payload);
-        if (res.state === 0 || res.State === 0) {
-          let dbRows = res.List0 || [];
-          if (activeGroupByKey) {
-            dbRows = groupRowsLocal(dbRows, activeGroupByKey);
-          }
-          setRows(dbRows);
-        }
-      } else {
-        // Fallback Mock Rows filtering
-        const mock = MOCK_CONFIGS[pageID] || { rows: [] };
-        let filtered = mock.rows;
-
-        // Apply active dropdown filters locally
-        Object.entries(filterValues).forEach(([col, val]) => {
-          if (val) {
-            filtered = filtered.filter(row => String(row[col] ?? "") === val);
-          }
-        });
-
-        // Apply dynamic group aggregation locally
+      // Use the provided filters override if it exists, otherwise fall back to the state
+      const activeFilters = filtersOverride && Object.keys(filtersOverride).length > 0 ? filtersOverride : filterValues;
+      const payload = { PageID: pageID, UserID: UserID, ...activeFilters };
+      const res = await apiCall("Get Page Data", payload, { Sp_Name: "APIERPOperation" });
+      if (res.state === 0 || res.State === 0) {
+        let dbRows = res.List0 || [];
         if (activeGroupByKey) {
-          filtered = groupRowsLocal(filtered, activeGroupByKey);
+          dbRows = groupRowsLocal(dbRows, activeGroupByKey);
         }
-        setRows(filtered);
+        setRows(dbRows);
       }
     } catch (e) {
       console.error("Failed to load grid rows:", e);
@@ -412,68 +327,167 @@ export default function DynamicPage({ pageID, pageName }) {
   }
 
   function handleFilterChange(filterKey, val) {
-    setFilterValues(prev => ({
-      ...prev,
-      [filterKey]: val
-    }));
+    setFilterValues(prev => {
+      const next = { ...prev, [filterKey]: val };
+      const baseKey = filterKey.replace(/_(From|To)$/, "");
+      const filter = filters.find(f => f.key === baseKey);
+      if (filter) {
+        const isDropdown = filter.FilterType && (
+          filter.FilterType.toLowerCase().includes("dropdown") ||
+          filter.FilterType.toLowerCase().includes("datalist")
+        );
+        const isDate = filter.FilterType && (
+          filter.FilterType.toLowerCase().includes("date") ||
+          filter.FilterType.toLowerCase().includes("datetime")
+        );
+        if (isDropdown || isDate) {
+          loadGridRows(next);
+        }
+      }
+      return next;
+    });
   }
 
   function clearFilters() {
     const cleared = {};
     filters.forEach(f => { 
-      const filterKey = isLiveMode ? f.key : f.FilterCode;
-      cleared[filterKey] = ""; 
+      const isRange = f.FilterType && (
+        f.FilterType.toLowerCase().includes("range") ||
+        f.FilterType.toLowerCase().includes("from-to") ||
+        f.FilterType.toLowerCase().includes("from_to")
+      );
+      if (isRange) {
+        cleared[`${f.key}_From`] = "";
+        cleared[`${f.key}_To`] = "";
+      } else {
+        cleared[f.key] = "";
+      }
     });
     setFilterValues(cleared);
+    loadGridRows(cleared);
   }
 
-  return (
-    <div className="erp-page-layout">
-      {/* Main Grid Area */}
-      <div className="erp-page-main">
-        {!panelOpen && (
-          <button className="erp-panel-toggle-tab" onClick={() => setPanelOpen(true)}>
-            🔍 Filters & Columns
-          </button>
-        )}
-        <DataGrid
-          title={pageName}
-          subtitle={isLiveMode ? "Live database config" : "Sandbox mock environment"}
-          columns={displayedColumns}
-          rows={rows}
-          loading={loading}
-          onRefresh={loadGridRows}
-        />
-      </div>
+  const activeViewName = views.find(v => String(v.ViewID) === String(activeViewID))?.ViewName || "Default Layout";
+  const visibleCount = columns.filter(col => visibleColumns[col.key] !== false).length;
 
-      {/* Right Control Panel */}
-      <aside className={`erp-right-panel ${panelOpen ? "open" : "collapsed"}`}>
-        <div className="erp-panel-header">
-          <h3>Control Panel</h3>
-          <button className="erp-panel-close-btn" onClick={() => setPanelOpen(false)}>
-            Hide Panel →
+  const controlPanelElement = (
+    <div className="erp-accordion-container">
+      {/* Subheader bar with toggle buttons */}
+      <div className="erp-accordion-header">
+        <div className="erp-accordion-tabs">
+          <button className="erp-accordion-tab" onClick={() => setPanelOpen(!panelOpen)}>
+            <span className="icon">🔍</span> {filters.length} Filters
+          </button>
+          <button className="erp-accordion-tab" onClick={() => setPanelOpen(!panelOpen)}>
+            <span className="icon">📊</span> {visibleCount} Columns
+          </button>
+          <button className="erp-accordion-tab" onClick={() => setPanelOpen(!panelOpen)}>
+            <span className="icon">⚙️</span> {activeViewName}
           </button>
         </div>
+        <button className="erp-accordion-chevron" onClick={() => setPanelOpen(!panelOpen)}>
+          {panelOpen ? "▲" : "▼"}
+        </button>
+      </div>
 
-        <div className="erp-panel-scroll">
-          {/* View & Group-By configuration */}
-          {(views.length > 0 || groupBys.length > 0) && (
-            <div className="erp-panel-section">
-              <h4>Layout Options</h4>
-              {views.length > 0 && (
-                <div className="erp-panel-field">
-                  <label>Arrangement View</label>
-                  <SearchDropdown
-                    value={activeViewID}
-                    onChange={setActiveViewID}
-                    options={views.map(v => ({ value: String(v.ViewID), label: v.ViewName }))}
-                    placeholder="— Default Columns —"
-                  />
-                </div>
-              )}
+      {/* Expanded Accordion Body */}
+      {panelOpen && (
+        <div className="erp-accordion-body">
+          {filters.length > 0 && (
+            <div className="erp-panel-section" style={{ marginBottom: 20 }}>
+              <span className="erp-section-title">Filters</span>
+              <div className="erp-filters-grid">
+                {filters.map(filter => {
+                  const filterKey = filter.key;
+                  const filterLabel = filter.label;
+                  const opts = dropdownOptions[filterKey] || [];
+                  const isDropdown = filter.FilterType && (
+                    filter.FilterType.toLowerCase().includes("dropdown") ||
+                    filter.FilterType.toLowerCase().includes("datalist")
+                  );
+                  const isDate = filter.FilterType && (
+                    filter.FilterType.toLowerCase().includes("date") ||
+                    filter.FilterType.toLowerCase().includes("datetime")
+                  );
+                  const isRange = filter.FilterType && (
+                    filter.FilterType.toLowerCase().includes("range") ||
+                    filter.FilterType.toLowerCase().includes("from-to") ||
+                    filter.FilterType.toLowerCase().includes("from_to")
+                  );
+
+                  return (
+                    <div key={filterKey} className="erp-filter-item">
+                      <label>{filterLabel}</label>
+                      {isRange ? (
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          {isDropdown ? (
+                            <SearchDropdown
+                              value={filterValues[`${filterKey}_From`] || ""}
+                              onChange={(val) => handleFilterChange(`${filterKey}_From`, val)}
+                              options={opts}
+                              valueKey={filterKey}
+                              placeholder="From"
+                              style={{ height: 38, borderRadius: 10, fontSize: 13 }}
+                            />
+                          ) : (
+                            <input
+                              type={isDate ? "date" : "text"}
+                              value={filterValues[`${filterKey}_From`] || ""}
+                              onChange={(e) => handleFilterChange(`${filterKey}_From`, e.target.value)}
+                              placeholder="From"
+                              style={{ width: "100%" }}
+                            />
+                          )}
+                          <span style={{ color: "var(--muted)", fontSize: 11, fontWeight: "bold" }}>to</span>
+                          {isDropdown ? (
+                            <SearchDropdown
+                              value={filterValues[`${filterKey}_To`] || ""}
+                              onChange={(val) => handleFilterChange(`${filterKey}_To`, val)}
+                              options={opts}
+                              valueKey={filterKey}
+                              placeholder="To"
+                              style={{ height: 38, borderRadius: 10, fontSize: 13 }}
+                            />
+                          ) : (
+                            <input
+                              type={isDate ? "date" : "text"}
+                              value={filterValues[`${filterKey}_To`] || ""}
+                              onChange={(e) => handleFilterChange(`${filterKey}_To`, e.target.value)}
+                              placeholder="To"
+                              style={{ width: "100%" }}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        isDropdown ? (
+                          <SearchDropdown
+                            value={filterValues[filterKey] || ""}
+                            onChange={(val) => handleFilterChange(filterKey, val)}
+                            options={opts}
+                            valueKey={filterKey}
+                            placeholder={`Filter by ${filterLabel}`}
+                          />
+                        ) : (
+                          <input
+                            type={isDate ? "date" : "text"}
+                            value={filterValues[filterKey] || ""}
+                            onChange={(e) => handleFilterChange(filterKey, e.target.value)}
+                          />
+                        )
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Columns & Arrangement View */}
+          <div className="erp-options-row">
+            <div className="erp-options-fields">
 
               {groupBys.length > 0 && (
-                <div className="erp-panel-field">
+                <div className="erp-filter-item">
                   <label>Group By Summary</label>
                   <SearchDropdown
                     value={activeGroupByKey}
@@ -484,62 +498,47 @@ export default function DynamicPage({ pageID, pageName }) {
                 </div>
               )}
             </div>
-          )}
 
-          {/* Filters section */}
-          {filters.length > 0 && (
-            <div className="erp-panel-section">
-              <div className="erp-section-header">
-                <h4>Filters</h4>
-                <button className="erp-section-clear-btn" onClick={clearFilters}>✕ Reset</button>
-              </div>
-              <div className="erp-panel-fields">
-                {filters.map(filter => {
-                  const filterKey = isLiveMode ? filter.key : filter.FilterCode;
-                  const filterLabel = isLiveMode ? filter.label : filter.DisplayName;
-                  const opts = dropdownOptions[filterKey] || [];
-                  return (
-                    <div key={filterKey} className="erp-panel-field">
-                      <label>{filterLabel}</label>
-                      {filter.FilterType === "dropdown" ? (
-                        <SearchDropdown
-                          value={filterValues[filterKey] || ""}
-                          onChange={(val) => handleFilterChange(filterKey, val)}
-                          options={opts}
-                          placeholder={`Filter by ${filterLabel}`}
-                        />
-                      ) : (
-                        <input
-                          type={filter.FilterType === "date" ? "date" : "text"}
-                          value={filterValues[filterKey] || ""}
-                          onChange={(e) => handleFilterChange(filterKey, e.target.value)}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Display Fields Section */}
-          <div className="erp-panel-section">
-            <h4>Display Columns</h4>
-            <div className="erp-columns-list">
-              {columns.map(col => (
-                <label key={col.key} className="erp-col-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={visibleColumns[col.key] !== false}
-                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, [col.key]: e.target.checked }))}
-                  />
-                  <span>{col.label}</span>
-                </label>
-              ))}
+            <div className="erp-action-btns">
+              <button className="erp-btn-reset" onClick={clearFilters}>Reset</button>
+              <button className="erp-btn-apply" onClick={() => loadGridRows()}>Apply Filter</button>
             </div>
           </div>
         </div>
-      </aside>
+      )}
+    </div>
+  );
+
+  const viewDropdownElement = views.length > 0 ? (
+    <div style={{ display: "inline-block", minWidth: 165 }}>
+      <SearchDropdown
+        value={activeViewID}
+        onChange={(val) => {
+          setActiveViewID(val);
+          setTimeout(() => loadGridRows(), 0);
+        }}
+        options={views.map(v => ({ value: String(v.ViewID), label: v.ViewName }))}
+        placeholder="View List"
+        style={{ height: 32, borderRadius: 8, fontSize: 12 }}
+      />
+    </div>
+  ) : null;
+
+  return (
+    <div className="erp-page-layout">
+      <div className="erp-page-main">
+        <DataGrid
+          title={pageName}
+          subtitle="Live database config preview"
+          columns={displayedColumns}
+          rows={rows}
+          loading={loading}
+          onRefresh={loadGridRows}
+          extraButtons={onBack ? [{ label: "← Back to Pages", onClick: onBack }] : []}
+          controlPanel={controlPanelElement}
+          viewDropdown={viewDropdownElement}
+        />
+      </div>
     </div>
   );
 }

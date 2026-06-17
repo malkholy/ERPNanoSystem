@@ -1,24 +1,32 @@
 import { useState, useEffect, useRef } from "react";
 
 const CSS = `
-.sd-wrap { position:relative; }
-.sd-trigger { width:100%; height:42px; border:1px solid var(--border); border-radius:12px; background:var(--surface); padding:0 36px 0 12px; font-size:13px; font-weight:700; outline:none; color:var(--text); text-align:left; cursor:pointer; display:flex; align-items:center; justify-content:space-between; }
-.sd-trigger:focus { border-color:var(--primary); }
-.sd-trigger.open { border-color:var(--primary); border-radius:12px 12px 0 0; }
+.sd-wrap { position:relative; flex:1; width:100%; }
+.sd-trigger { width:100%; height:42px; border:1px solid var(--border); border-radius:12px; background:var(--surface); padding:0 36px 0 12px; font-size:13px; font-weight:700; outline:none; color:var(--text); text-align:left; cursor:pointer; display:flex; align-items:center; justify-content:space-between; transition: border-color 0.15s, box-shadow 0.15s; }
+.sd-trigger:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+.sd-trigger.open { border-color:var(--primary); border-radius:12px 12px 0 0; box-shadow:0 0 0 3px var(--primary-soft); }
 .sd-trigger.ro { background:#f1f5f9; color:var(--muted); cursor:default; }
 .sd-arrow { color:var(--muted); font-size:11px; flex-shrink:0; }
-.sd-dropdown { position:absolute; left:0; right:0; top:100%; background:var(--surface); border:1px solid var(--primary); border-top:0; border-radius:0 0 12px 12px; z-index:9999; box-shadow:0 8px 24px rgba(15,23,42,.1); }
+.sd-dropdown { position:absolute; left:0; min-width:max(100%, 360px); max-width:min(550px, 90vw); top:100%; background:var(--surface); border:1px solid var(--primary); border-top:0; border-radius:0 0 12px 12px; z-index:9999; box-shadow:0 8px 24px rgba(15,23,42,.1); }
 .sd-search-wrap { padding:8px; border-bottom:1px solid var(--border); }
 .sd-search { width:100%; height:34px; border:1px solid var(--border); border-radius:9px; padding:0 10px; font-size:13px; outline:none; background:var(--soft); }
 .sd-search:focus { border-color:var(--primary); }
 .sd-list { max-height:200px; overflow-y:auto; }
-.sd-item { padding:10px 13px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; }
+.sd-item { padding:10px 13px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sd-item:hover { background:var(--primary-soft); color:var(--primary-dark); }
 .sd-item.active { background:var(--primary-soft); color:var(--primary-dark); font-weight:900; }
 .sd-item.active::after { content:"✓"; margin-left:auto; color:var(--primary); font-weight:900; }
 .sd-empty { padding:14px; text-align:center; color:var(--muted); font-size:13px; }
 .sd-clear { height:34px; width:100%; border:0; border-top:1px solid var(--border); background:var(--soft); color:var(--muted); font-size:12px; font-weight:900; cursor:pointer; border-radius:0 0 12px 12px; }
 .sd-clear:hover { background:var(--primary-soft); color:var(--primary-dark); }
+
+.sd-table-wrap { overflow: auto; max-height: 220px; border-radius: 0 0 12px 12px; }
+table.sd-table { width: 100%; border-collapse: collapse; min-width: 100%; table-layout: auto; }
+table.sd-table th, table.sd-table td { padding: 10px 12px; text-align: left; font-size: 12.5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.sd-table th { background: var(--soft); font-weight: 900; color: var(--muted); position: sticky; top: 0; z-index: 2; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; border-bottom: 2px solid var(--border); }
+table.sd-table tr { cursor: pointer; transition: background 0.1s; }
+table.sd-table tr:hover td { background: var(--primary-soft); color: var(--primary-dark); }
+table.sd-table tr.active td { background: var(--primary-soft); color: var(--primary-dark); font-weight: 900; }
 `;
 
 function injectCSS() {
@@ -33,10 +41,12 @@ function injectCSS() {
  * Props:
  *  value        string — current value
  *  onChange     fn(value)
- *  options      [{value, label}] or [string]
+ *  options      [{value, label}] or [string] or array of db row objects
  *  placeholder  string
  *  disabled     bool
  *  clearable    bool
+ *  valueKey     string — key mapping for selected value column (for database row options)
+ *  style        object
  */
 export default function SearchDropdown({
   value = "",
@@ -45,6 +55,8 @@ export default function SearchDropdown({
   placeholder = "— Select —",
   disabled = false,
   clearable = true,
+  valueKey = "",
+  style = {},
 }) {
   injectCSS();
 
@@ -53,17 +65,41 @@ export default function SearchDropdown({
   const wrapRef             = useRef();
   const searchRef           = useRef();
 
-  // normalize options to [{value, label}]
-  const normalized = options.map(o =>
+  // Check if options are structured objects (multi-column database rows)
+  const isMultiCol = options.length > 0 && 
+                     typeof options[0] === "object" && 
+                     !('value' in options[0]);
+
+  const headers = isMultiCol ? Object.keys(options[0]) : [];
+  const valKey  = valueKey || (headers.length > 0 ? headers[0] : "value");
+
+  // normalize options to [{value, label}] for non-multi-column layout
+  const normalized = isMultiCol ? [] : options.map(o =>
     typeof o === "string" ? { value: o, label: o } : o
   );
 
-  const filtered = normalized.filter(o =>
-    String(o.label ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    String(o.value ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = isMultiCol 
+    ? options.filter(item => {
+        if (!search) return true;
+        return Object.values(item).some(val => 
+          String(val ?? '').toLowerCase().includes(search.toLowerCase())
+        );
+      })
+    : normalized.filter(o =>
+        String(o.label ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        String(o.value ?? "").toLowerCase().includes(search.toLowerCase())
+      );
 
-  const selectedLabel = normalized.find(o => String(o.value) === String(value))?.label || value;
+  // Determine trigger display label
+  let selectedLabel = value;
+  if (isMultiCol) {
+    const selectedItem = options.find(o => String(o[valKey]) === String(value));
+    if (selectedItem) {
+      selectedLabel = Object.values(selectedItem).filter(v => v !== null && v !== undefined && v !== '').join(" - ");
+    }
+  } else {
+    selectedLabel = normalized.find(o => String(o.value) === String(value))?.label || value;
+  }
 
   useEffect(() => {
     function handler(e) {
@@ -87,7 +123,7 @@ export default function SearchDropdown({
   }
 
   if (disabled) return (
-    <div className="sd-trigger ro">
+    <div className="sd-trigger ro" style={style}>
       <span>{selectedLabel || placeholder}</span>
       <span className="sd-arrow">▾</span>
     </div>
@@ -98,6 +134,7 @@ export default function SearchDropdown({
       <button
         type="button"
         className={`sd-trigger ${open ? "open" : ""}`}
+        style={style}
         onClick={() => setOpen(v => !v)}
       >
         <span style={{ color: value ? "var(--text)" : "var(--muted)" }}>
@@ -117,21 +154,60 @@ export default function SearchDropdown({
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <div className="sd-list">
-            {filtered.length === 0 ? (
-              <div className="sd-empty">No results</div>
-            ) : (
-              filtered.map(o => (
-                <div
-                  key={o.value}
-                  className={`sd-item ${o.value === value ? "active" : ""}`}
-                  onClick={() => select(o.value)}
-                >
-                  {o.label}
-                </div>
-              ))
-            )}
-          </div>
+
+          {isMultiCol ? (
+            <div className="sd-table-wrap">
+              <table className="sd-table">
+                <thead>
+                  <tr>
+                    {headers.map(h => (
+                      <th key={h}>{h.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={headers.length} className="sd-empty">No results</td>
+                    </tr>
+                  ) : (
+                    filtered.map((item, idx) => {
+                      const itemVal = item[valKey];
+                      const isActive = String(itemVal) === String(value);
+                      return (
+                        <tr 
+                          key={idx} 
+                          className={isActive ? "active" : ""}
+                          onClick={() => select(itemVal)}
+                        >
+                          {headers.map(h => (
+                            <td key={h}>{String(item[h] ?? "")}</td>
+                          ))}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="sd-list">
+              {filtered.length === 0 ? (
+                <div className="sd-empty">No results</div>
+              ) : (
+                filtered.map(o => (
+                  <div
+                    key={o.value}
+                    className={`sd-item ${o.value === value ? "active" : ""}`}
+                    onClick={() => select(o.value)}
+                  >
+                    {o.label}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {clearable && value && (
             <button className="sd-clear" onClick={() => { onChange(""); setOpen(false); }}>
               ✕ Clear
