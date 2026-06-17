@@ -7,7 +7,7 @@
 */
 
 GO
-CREATE OR ALTER PROCEDURE CP.APIERPOperation
+CREATE OR ALTER PROCEDURE dbo.APIERPOperation
     @Operation NVARCHAR(100),
     @LineData NVARCHAR(MAX) = NULL,
     @LineFilter NVARCHAR(MAX) = NULL,
@@ -255,7 +255,7 @@ BEGIN
     -- =========================================================================
     -- Operation: Get Filter Options (Dynamic Lookup Loader)
     -- =========================================================================
-    IF @Operation = 'Get Filter Options'
+    IF @Operation = 'Get Filter Options' OR @Operation = 'Get Filter Data'
     BEGIN
         DECLARE @TargetFilterID INT;
         DECLARE @ValueField NVARCHAR(100);

@@ -3,6 +3,22 @@ import { apiCall } from "../shared/api.js";
 import DataGrid from "../shared/DataGrid.jsx";
 import SearchDropdown from "../shared/SearchDropdown.jsx";
 
+/*
+ * DynamicPage — runtime renderer for ERP Nano pages.
+ *
+ * Load sequence, all via APIERPOperation:
+ *   Step 1. Get Page Info  -> List0 columns, List1 filters, List2 groupby, List3 views, List4 view-fields
+ *   Step 2. Get Filter Data with FilterID -> dropdown options for each datalist filter where FilterID > 0
+ *   Step 3. Get Page Data with PageID + LineFilter -> grid rows
+ *
+ * Backend contract for List1 filters — each row MUST provide:
+ *   key                = PageKeyField, the REAL table column used to filter
+ *   FilterType         = date | datalist | datalist_range | date_range
+ *   DefaultValue       = blank | Today | Yesterday | Month Began | literal
+ *   FilterValueField   = lookup value column for dropdown options
+ *   FilterDisplayField = lookup display column for dropdown options
+ *   FilterID           = greater than 0 for datalist with lookup, 0 for date with no lookup
+ */
 const badgeStyle = (val) => {
   const v = String(val ?? "").toLowerCase();
   if (v === "active" || v === "paid" || v === "good") return { background: "var(--green-soft)", color: "var(--green)" };
@@ -26,7 +42,8 @@ const PAGE_CSS = `
 .erp-filters-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px 20px; margin-bottom: 20px; }
 .erp-filter-item { display: flex; flex-direction: column; gap: 6px; }
 .erp-filter-item label { font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.erp-filter-item input, .erp-filter-item select { height: 38px; border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; font-size: 13px; font-weight: 750; outline: none; background: var(--surface); transition: all 0.15s; }
+.erp-filter-item input, .erp-filter-item select { height: 38px; border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; font-size: 13px; font-weight: 750; outline: none; background: var(--surface); color: var(--text); transition: all 0.15s; }
+.erp-filter-item input::placeholder { color: var(--muted); font-weight: 500; }
 .erp-filter-item input:focus, .erp-filter-item select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .erp-options-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 20px; }
 .erp-options-fields { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
@@ -44,9 +61,9 @@ const PAGE_CSS = `
 `;
 
 function injectPageCSS() {
-  if (document.getElementById("erp-page-css")) return;
+  if (document.getElementById("erp-page-css-v2")) return;
   const s = document.createElement("style");
-  s.id = "erp-page-css";
+  s.id = "erp-page-css-v2";
   s.textContent = PAGE_CSS;
   document.head.appendChild(s);
 }
@@ -85,6 +102,11 @@ function resolveDateDefault(val) {
   if (v === "year began") {
     return `${d.getFullYear()}-01-01`;
   }
+  // already ISO YYYY-MM-DD ? keep as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  // otherwise try to parse a real date string (handles ISO datetime, MM/DD/YYYY, etc.)
+  const parsed = new Date(val);
+  if (!isNaN(parsed.getTime())) return fmt(parsed);
   return val;
 }
 
@@ -172,6 +194,7 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
     setGroupBys([]);
 
     try {
+      // ── STEP 1: Get Page Info — columns, filters, views, groupbys ──
       const res = await apiCall("Get Page Info", { PageID: pageID }, { Sp_Name: "APIERPOperation" });
       if (res.state === 0 || res.State === 0) {
         // Filters (List1)
@@ -187,7 +210,7 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
         // View Fields (List4)
         setViewFields(res.List4 || []);
 
-        // Initialize filter inputs
+        // Initialize filter inputs (apply defaults; resolve date tokens like "Today")
         const initVals = {};
         mappedFilters.forEach(f => {
           const isDate = f.FilterType && (
@@ -211,7 +234,7 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
         });
         setFilterValues(initVals);
 
-        // Fetch dropdown options for dropdown filters
+        // ── STEP 2: Get Filter Data — fill each datalist dropdown ──
         mappedFilters.forEach(f => {
           const isDropdown = f.FilterType && (
             f.FilterType.toLowerCase().includes("dropdown") ||
@@ -232,6 +255,7 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
         }));
         setBaseColumns(mappedCols);
         setColumns(mappedCols);
+        // ── STEP 3: Get Page Data — auto-fires via the baseColumns useEffect ──
       }
     } catch (e) {
       console.error("Failed to load page setup:", e);
@@ -240,14 +264,15 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
     }
   }
 
-  // Fetch dropdown lookup options generically
+  // STEP 2: Fetch dropdown lookup options for a datalist filter
   async function loadDropdownOpts(filterCode, filterID, valueField = null, displayField = null) {
+    if (!filterID || Number(filterID) === 0) return; // date/no-lookup filters have FilterID 0
     try {
       const payload = { FilterID: filterID };
       if (valueField) payload.ValueField = valueField;
       if (displayField) payload.DisplayField = displayField;
-      
-      const res = await apiCall("Get Filter Options", payload, { Sp_Name: "APIERPOperation" });
+
+      const res = await apiCall("Get Filter Data", payload, { Sp_Name: "APIERPOperation" });
       if (res.state === 0 || res.State === 0) {
         setDropdownOptions(prev => ({
           ...prev,
@@ -255,7 +280,7 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
         }));
       }
     } catch (e) {
-      console.error(`Failed to load options for ${filterCode}:`, e);
+      console.error(`Failed to load filter data for ${filterCode}:`, e);
     }
   }
 
@@ -369,20 +394,40 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
       const baseKey = filterKey.replace(/_(From|To)$/, "");
       const filter = filters.find(f => f.key === baseKey);
       if (filter) {
-        const isDropdown = filter.FilterType && (
-          filter.FilterType.toLowerCase().includes("dropdown") ||
-          filter.FilterType.toLowerCase().includes("datalist")
+        const isRange = filter.FilterType && (
+          filter.FilterType.toLowerCase().includes("range") ||
+          filter.FilterType.toLowerCase().includes("from-to") ||
+          filter.FilterType.toLowerCase().includes("from_to")
         );
         const isDate = filter.FilterType && (
           filter.FilterType.toLowerCase().includes("date") ||
           filter.FilterType.toLowerCase().includes("datetime")
         );
-        if (isDropdown || isDate) {
+        if (isDate && !isRange) {
           loadGridRows(next);
         }
       }
       return next;
     });
+  }
+
+  // Resolve a typed value (e.g. "10001") to its display name (e.g. "Ahmed Al-Hassan")
+  // `filter` is the filter config object (has key, FilterValueField, FilterDisplayField)
+  function resolveDisplayName(filter, val) {
+    if (!val) return "";
+    const opts = dropdownOptions[filter.key] || [];
+    if (!opts.length || typeof opts[0] !== "object") return "";
+    const headers = Object.keys(opts[0]);
+    // value column in the lookup options = FilterValueField, else first column
+    const valCol = (filter.FilterValueField && filter.FilterValueField in opts[0])
+                 ? filter.FilterValueField : headers[0];
+    const row = opts.find(o => String(o[valCol]) === String(val));
+    if (!row) return "";
+    // display column = FilterDisplayField, else second column, else first non-value column
+    const dispCol = (filter.FilterDisplayField && filter.FilterDisplayField in opts[0])
+                  ? filter.FilterDisplayField
+                  : (headers[1] && headers[1] !== valCol ? headers[1] : headers.find(h => h !== valCol));
+    return dispCol ? String(row[dispCol] ?? "") : "";
   }
 
   function clearFilters() {
@@ -456,17 +501,8 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
                     <div key={filterKey} className="erp-filter-item">
                       <label>{filterLabel}</label>
                       {isRange ? (
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          {isDropdown ? (
-                            <SearchDropdown
-                              value={filterValues[`${filterKey}_From`] || ""}
-                              onChange={(val) => handleFilterChange(`${filterKey}_From`, val)}
-                              options={opts}
-                              valueKey={filterKey}
-                              placeholder="From"
-                              style={{ height: 38, borderRadius: 10, fontSize: 13 }}
-                            />
-                          ) : (
+                        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                          <div style={{ flex: 1 }}>
                             <input
                               type={isDate ? "date" : "text"}
                               value={filterValues[`${filterKey}_From`] || ""}
@@ -474,18 +510,14 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
                               placeholder="From"
                               style={{ width: "100%" }}
                             />
-                          )}
-                          <span style={{ color: "var(--muted)", fontSize: 11, fontWeight: "bold" }}>to</span>
-                          {isDropdown ? (
-                            <SearchDropdown
-                              value={filterValues[`${filterKey}_To`] || ""}
-                              onChange={(val) => handleFilterChange(`${filterKey}_To`, val)}
-                              options={opts}
-                              valueKey={filterKey}
-                              placeholder="To"
-                              style={{ height: 38, borderRadius: 10, fontSize: 13 }}
-                            />
-                          ) : (
+                            {!isDate && resolveDisplayName(filter, filterValues[`${filterKey}_From`]) && (
+                              <div style={{ fontSize: 12, color: "var(--blue)", fontWeight: 700, marginTop: 5 }}>
+                                {resolveDisplayName(filter, filterValues[`${filterKey}_From`])}
+                              </div>
+                            )}
+                          </div>
+                          <span style={{ color: "var(--muted)", fontSize: 14, fontWeight: "bold", marginTop: 10 }}>→</span>
+                          <div style={{ flex: 1 }}>
                             <input
                               type={isDate ? "date" : "text"}
                               value={filterValues[`${filterKey}_To`] || ""}
@@ -493,7 +525,12 @@ export default function DynamicPage({ pageID, pageName, onBack }) {
                               placeholder="To"
                               style={{ width: "100%" }}
                             />
-                          )}
+                            {!isDate && resolveDisplayName(filter, filterValues[`${filterKey}_To`]) && (
+                              <div style={{ fontSize: 12, color: "var(--blue)", fontWeight: 700, marginTop: 5 }}>
+                                {resolveDisplayName(filter, filterValues[`${filterKey}_To`])}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         isDropdown ? (
